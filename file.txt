@@ -1,0 +1,882 @@
+#EXPT2 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# Create sugarcane dataset and save as ultrasonic.csv
+np.random.seed(42)
+n = 300
+temperature = np.random.uniform(20, 42, n)        # deg C
+humidity = np.random.uniform(30, 90, n)           # %
+rainfall = np.random.uniform(0, 25, n)            # mm/day
+soil_moisture = np.random.uniform(10, 40, n)      # %
+wind_speed = np.random.uniform(0, 15, n)          # km/h
+crop_age_days = np.random.randint(30, 360, n)     # days
+
+irrigation_mm_day = (
+    2.0
+    + 0.18 * temperature
+    - 0.03 * humidity
+    - 0.15 * rainfall
+    - 0.08 * soil_moisture
+    + 0.10 * wind_speed
+    + 0.004 * crop_age_days
+    + np.random.normal(0, 0.4, n)
+)
+
+pd.DataFrame({
+    "temperature": temperature,
+    "humidity": humidity,
+    "rainfall": rainfall,
+    "soil_moisture": soil_moisture,
+    "wind_speed": wind_speed,
+    "crop_age_days": crop_age_days,
+    "irrigation_mm_day": irrigation_mm_day,
+}).to_csv("ultrasonic.csv", index=False)
+
+# Load dataset
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+
+X = ultrasonic.drop("irrigation_mm_day", axis=1)
+y = ultrasonic["irrigation_mm_day"]
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Train model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+
+# Evaluate
+mae = mean_absolute_error(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+
+print("\nCoefficients:")
+for name, coef in zip(X.columns, model.coef_):
+    print(f"  {name}: {coef:.4f}")
+print("Intercept:", model.intercept_)
+
+print("\nMAE  :", mae)
+print("MSE  :", mse)
+print("RMSE :", rmse)
+print("R2   :", r2)
+
+# Actual vs Predicted plot
+plt.scatter(y_test, y_pred, s=15)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
+plt.xlabel("Actual irrigation requirement (mm/day)")
+plt.ylabel("Predicted irrigation requirement (mm/day)")
+plt.title("Sugarcane Irrigation: Actual vs Predicted")
+plt.show()
+
+
+
+
+
+
+
+
+#EXPT3
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (accuracy_score, confusion_matrix, ConfusionMatrixDisplay,
+                             precision_score, recall_score, f1_score,
+                             classification_report, roc_curve, roc_auc_score)
+
+# Create Indian weather dataset and save as ultrasonic.csv
+np.random.seed(42)
+cities = {
+    "Delhi": "North", "Jaipur": "North", "Lucknow": "North",
+    "Nagpur": "Central", "Bhopal": "Central",
+    "Mumbai": "West", "Ahmedabad": "West",
+    "Chennai": "South", "Hyderabad": "South",
+    "Kolkata": "East", "Patna": "East",
+}
+n = 1000
+city = np.random.choice(list(cities.keys()), n)
+region = np.array([cities[c] for c in city])
+
+max_temp = np.random.normal(38, 5, n)                 # deg C
+min_temp = max_temp - np.random.uniform(8, 16, n)     # deg C
+humidity = np.random.uniform(15, 90, n)               # %
+wind_speed = np.random.uniform(2, 30, n)              # km/h
+
+z = (0.9 * (max_temp - 40) + 0.15 * (min_temp - 26)
+     - 0.03 * (humidity - 45) - 0.02 * (wind_speed - 15))
+prob = 1 / (1 + np.exp(-z))
+heatwave = np.where(np.random.rand(n) < prob, "Yes", "No")
+
+pd.DataFrame({
+    "City": city, "Region": region,
+    "Max_Temperature": max_temp, "Min_Temperature": min_temp,
+    "Humidity": humidity, "Wind_Speed": wind_speed,
+    "Heatwave": heatwave,
+}).to_csv("ultrasonic.csv", index=False)
+
+# Load dataset
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+print(ultrasonic["Heatwave"].value_counts())
+
+# Features and target
+X = ultrasonic.drop("Heatwave", axis=1)
+y = ultrasonic["Heatwave"].map({"No": 0, "Yes": 1})
+
+num_cols = ["Max_Temperature", "Min_Temperature", "Humidity", "Wind_Speed"]
+cat_cols = ["City", "Region"]
+
+preprocess = ColumnTransformer([
+    ("num", StandardScaler(), num_cols),
+    ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
+])
+
+model = Pipeline([
+    ("prep", preprocess),
+    ("clf", LogisticRegression(max_iter=1000)),
+])
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Train
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+y_prob = model.predict_proba(X_test)[:, 1]
+
+# Evaluate
+print("\nAccuracy :", accuracy_score(y_test, y_pred))
+print("Precision:", precision_score(y_test, y_pred))
+print("Recall   :", recall_score(y_test, y_pred))
+print("F1-Score :", f1_score(y_test, y_pred))
+print("ROC-AUC  :", roc_auc_score(y_test, y_prob))
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred, target_names=["No", "Yes"]))
+
+# Confusion matrix plot
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred, display_labels=["No", "Yes"], cmap="Blues")
+plt.title("Confusion Matrix - Heatwave Prediction")
+plt.show()
+
+# ROC curve
+fpr, tpr, _ = roc_curve(y_test, y_prob)
+plt.figure(figsize=(6, 5))
+plt.plot(fpr, tpr, label=f"Logistic Regression (AUC = {roc_auc_score(y_test, y_prob):.3f})")
+plt.plot([0, 1], [0, 1], "k--", label="Random guess")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve - Heatwave Prediction")
+plt.legend()
+plt.show()
+
+# Predict for a new day
+new_day = pd.DataFrame({
+    "City": ["Nagpur"], "Region": ["Central"],
+    "Max_Temperature": [44], "Min_Temperature": [30],
+    "Humidity": [20], "Wind_Speed": [10],
+})
+print("\nHeatwave probability for new day:", model.predict_proba(new_day)[0][1])
+print("Prediction:", "Yes" if model.predict(new_day)[0] == 1 else "No")
+
+
+
+
+
+
+
+
+
+
+#expt4
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Create dataset and save as ultrasonic.csv
+np.random.seed(42)
+n = 500
+temperature = np.random.uniform(15, 45, n)
+humidity = np.random.uniform(20, 95, n)
+rainfall = np.random.uniform(0, 30, n)
+wind_speed = np.random.uniform(0, 20, n)
+
+soil_moisture = (30 - 0.5 * temperature + 0.25 * humidity
+                 + 0.6 * rainfall - 0.3 * wind_speed
+                 + np.random.normal(0, 1.5, n))
+
+pd.DataFrame({
+    "Temperature": temperature,
+    "Humidity": humidity,
+    "Rainfall": rainfall,
+    "WindSpeed": wind_speed,
+    "Soil_Moisture": soil_moisture,
+}).to_csv("ultrasonic.csv", index=False)
+
+# Load dataset
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+
+features = ["Temperature", "Humidity", "Rainfall", "WindSpeed"]
+X = ultrasonic[features].values
+y = ultrasonic["Soil_Moisture"].values
+
+# Train-test split (80/20)
+idx = np.random.permutation(len(X))
+split = int(0.8 * len(X))
+X_train, X_test = X[idx[:split]], X[idx[split:]]
+y_train, y_test = y[idx[:split]], y[idx[split:]]
+
+# Feature scaling (using training data statistics)
+mu, sigma = X_train.mean(axis=0), X_train.std(axis=0)
+Xb_train = np.c_[np.ones(len(X_train)), (X_train - mu) / sigma]
+Xb_test = np.c_[np.ones(len(X_test)), (X_test - mu) / sigma]
+
+# Hypothesis: h(X) = theta0 + theta1*x1 + ... + theta4*x4
+def compute_cost(Xb, y, theta):
+    errors = Xb @ theta - y
+    return np.sum(errors ** 2) / (2 * len(y))
+
+def gradient_descent(Xb, y, alpha=0.1, iterations=1000):
+    theta = np.zeros(Xb.shape[1])
+    cost_history = []
+    for _ in range(iterations):
+        gradient = (Xb.T @ (Xb @ theta - y)) / len(y)
+        theta = theta - alpha * gradient
+        cost_history.append(compute_cost(Xb, y, theta))
+    return theta, cost_history
+
+theta, cost_history = gradient_descent(Xb_train, y_train, alpha=0.1, iterations=1000)
+
+# Parameters in original scale
+theta_orig = theta[1:] / sigma
+intercept_orig = theta[0] - np.sum(theta[1:] * mu / sigma)
+print("\nIntercept (theta0):", intercept_orig)
+for name, t in zip(features, theta_orig):
+    print(f"{name}: {t:.4f}")
+
+# Evaluation
+y_pred = Xb_test @ theta
+mae = np.mean(np.abs(y_test - y_pred))
+mse = np.mean((y_test - y_pred) ** 2)
+rmse = np.sqrt(mse)
+r2 = 1 - np.sum((y_test - y_pred) ** 2) / np.sum((y_test - y_test.mean()) ** 2)
+print("\nMAE :", mae)
+print("MSE :", mse)
+print("RMSE:", rmse)
+print("R2  :", r2)
+
+# Plots
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+axes[0].plot(cost_history)
+axes[0].set_xlabel("Iterations")
+axes[0].set_ylabel("Cost J")
+axes[0].set_title("Cost vs Iterations")
+
+axes[1].scatter(y_test, y_pred, s=15)
+axes[1].plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
+axes[1].set_xlabel("Actual Soil Moisture (%)")
+axes[1].set_ylabel("Predicted Soil Moisture (%)")
+axes[1].set_title("Actual vs Predicted")
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+#EXPT5
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Create satellite telemetry dataset and save as ultrasonic.csv
+np.random.seed(42)
+# (mean, std) for: Temperature, Battery_Voltage, Battery_Current,
+#                  Solar_Panel_Voltage, Signal_Strength, Power_Consumption
+profiles = {
+    "Normal":   [(25, 5), (8.0, 0.3), (1.0, 0.2), (15, 1.0), (-60, 8), (50, 8)],
+    "Warning":  [(45, 6), (7.2, 0.4), (1.4, 0.25), (12, 1.5), (-75, 8), (70, 10)],
+    "Critical": [(65, 7), (6.2, 0.5), (1.8, 0.3), (9, 2.0), (-90, 7), (90, 12)],
+}
+columns = ["Temperature", "Battery_Voltage", "Battery_Current",
+           "Solar_Panel_Voltage", "Signal_Strength", "Power_Consumption"]
+
+frames = []
+for label, params in profiles.items():
+    data = {col: np.random.normal(mu, sd, 200) for col, (mu, sd) in zip(columns, params)}
+    df_c = pd.DataFrame(data)
+    df_c["Class"] = label
+    frames.append(df_c)
+pd.concat(frames).sample(frac=1, random_state=42).to_csv("ultrasonic.csv", index=False)
+
+# Step 1: Load the dataset
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+print(ultrasonic["Class"].value_counts())
+
+# Step 2: Select features and target
+features = columns
+X = ultrasonic[features].values
+classes = np.array(sorted(ultrasonic["Class"].unique()))
+y = np.array([np.where(classes == c)[0][0] for c in ultrasonic["Class"]])
+
+# Train / validation / test split (70 / 15 / 15)
+idx = np.random.permutation(len(X))
+n_train = int(0.70 * len(X))
+n_val = int(0.15 * len(X))
+train_idx = idx[:n_train]
+val_idx = idx[n_train:n_train + n_val]
+test_idx = idx[n_train + n_val:]
+
+X_train, y_train = X[train_idx], y[train_idx]
+X_val, y_val = X[val_idx], y[val_idx]
+X_test, y_test = X[test_idx], y[test_idx]
+
+# Feature scaling: z = (x - mean) / std  (statistics from training data only)
+mu = X_train.mean(axis=0)
+sigma = X_train.std(axis=0)
+X_train_s = (X_train - mu) / sigma
+X_val_s = (X_val - mu) / sigma
+X_test_s = (X_test - mu) / sigma
+
+# Steps 4-9: KNN from scratch
+def knn_predict(X_train, y_train, X_query, k):
+    predictions = []
+    for q in X_query:
+        # Euclidean distance to every training observation
+        distances = np.sqrt(np.sum((X_train - q) ** 2, axis=1))
+        # Sort ascending and take the K nearest
+        nearest = np.argsort(distances)[:k]
+        nearest_labels = y_train[nearest]
+        # Majority vote
+        values, counts = np.unique(nearest_labels, return_counts=True)
+        predictions.append(values[np.argmax(counts)])
+    return np.array(predictions)
+
+# Step 3: Choose K using validation data (odd values)
+k_values = list(range(1, 22, 2))
+val_acc = []
+for k in k_values:
+    pred = knn_predict(X_train_s, y_train, X_val_s, k)
+    val_acc.append(np.mean(pred == y_val))
+    print(f"K = {k:2d}  Validation accuracy = {val_acc[-1]:.4f}")
+
+best_k = k_values[int(np.argmax(val_acc))]
+print("\nBest K:", best_k)
+
+# Step 10: Evaluate on test data
+y_pred = knn_predict(X_train_s, y_train, X_test_s, best_k)
+
+# Confusion matrix (rows = actual, columns = predicted)
+n_classes = len(classes)
+cm = np.zeros((n_classes, n_classes), dtype=int)
+for actual, predicted in zip(y_test, y_pred):
+    cm[actual, predicted] += 1
+
+accuracy = np.trace(cm) / cm.sum()
+print("\nTest Accuracy:", accuracy)
+print("\nConfusion Matrix:\n", pd.DataFrame(cm, index=classes, columns=classes))
+
+# Precision, recall, F1 for each class
+print("\nClass       Precision   Recall   F1-score")
+precisions, recalls, f1s = [], [], []
+for i, c in enumerate(classes):
+    tp = cm[i, i]
+    fp = cm[:, i].sum() - tp
+    fn = cm[i, :].sum() - tp
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    precisions.append(precision); recalls.append(recall); f1s.append(f1)
+    print(f"{c:<10}  {precision:9.4f}  {recall:7.4f}  {f1:9.4f}")
+print(f"{'Macro avg':<10}  {np.mean(precisions):9.4f}  {np.mean(recalls):7.4f}  {np.mean(f1s):9.4f}")
+
+# Classify a new telemetry observation
+new_obs = np.array([[62, 6.4, 1.7, 9.5, -88, 88]])
+new_pred = knn_predict(X_train_s, y_train, (new_obs - mu) / sigma, best_k)
+print("\nNew observation classified as:", classes[new_pred[0]])
+
+# Plots
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+axes[0].plot(k_values, val_acc, marker="o")
+axes[0].set_xlabel("K")
+axes[0].set_ylabel("Validation accuracy")
+axes[0].set_title("Choosing K")
+axes[0].set_xticks(k_values)
+
+im = axes[1].imshow(cm, cmap="Blues")
+axes[1].set_xticks(range(n_classes)); axes[1].set_xticklabels(classes)
+axes[1].set_yticks(range(n_classes)); axes[1].set_yticklabels(classes)
+axes[1].set_xlabel("Predicted")
+axes[1].set_ylabel("Actual")
+axes[1].set_title("Confusion Matrix")
+for i in range(n_classes):
+    for j in range(n_classes):
+        axes[1].text(j, i, cm[i, j], ha="center", va="center")
+plt.colorbar(im, ax=axes[1])
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+#expt6 
+import numpy as np
+import pandas as pd
+
+ultrasonic = pd.read_csv("ultrasonic.csv")
+
+def entropy(labels):
+    _, counts = np.unique(labels, return_counts=True)
+    p = counts / counts.sum()
+    return -np.sum(p * np.log2(p))
+
+def information_gain(df, feature, target="Class"):
+    parent = entropy(df[target])
+    weighted = 0
+    for value, subset in df.groupby(feature):
+        weighted += len(subset) / len(df) * entropy(subset[target])
+    return parent - weighted
+
+print("Entropy of dataset:", entropy(ultrasonic["Class"]))
+print("Information Gain (Outlook):", information_gain(ultrasonic, "Outlook"))
+
+
+
+
+
+
+
+
+#expt7
+# Step 1: Load the important libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_blobs, make_moons
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, confusion_matrix, ConfusionMatrixDisplay,
+                             classification_report)
+
+# Create datasets and save as ultrasonic.csv
+# Linearly separable data (for Linear SVM)
+X_lin, y_lin = make_blobs(n_samples=300, centers=2, cluster_std=1.2, random_state=42)
+pd.DataFrame({"x1": X_lin[:, 0], "x2": X_lin[:, 1], "target": y_lin}).to_csv("ultrasonic.csv", index=False)
+
+# Step 2: Import dataset, extract X and Y separately
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+X = ultrasonic[["x1", "x2"]].values
+y = ultrasonic["target"].values
+
+# Step 3: Divide into train and test
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Step 4: Scaling
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+# Steps 5-6: Initialize and fit the SVM classifier (Linear SVM)
+svm_linear = SVC(kernel="linear", C=1.0)
+svm_linear.fit(X_train_s, y_train)
+
+# Step 7: Predict
+y_pred = svm_linear.predict(X_test_s)
+
+# Step 8: Evaluate
+print("\n--- Linear SVM ---")
+print("Accuracy :", accuracy_score(y_test, y_pred))
+print("Precision:", precision_score(y_test, y_pred))
+print("Recall   :", recall_score(y_test, y_pred))
+print("F1-Score :", f1_score(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))
+print("Number of support vectors:", svm_linear.n_support_)
+
+# Function to plot decision boundary, margins and support vectors
+def plot_svm(model, X, y, title, ax):
+    xx, yy = np.meshgrid(np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),
+                         np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300))
+    Z = model.decision_function(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+    ax.contourf(xx, yy, Z > 0, alpha=0.2, cmap="coolwarm")
+    ax.contour(xx, yy, Z, levels=[-1, 0, 1], colors="k",
+               linestyles=["--", "-", "--"])
+    ax.scatter(X[:, 0], X[:, 1], c=y, cmap="coolwarm", edgecolor="k", s=25)
+    ax.scatter(model.support_vectors_[:, 0], model.support_vectors_[:, 1],
+               s=120, facecolors="none", edgecolors="green", linewidths=1.5,
+               label="Support vectors")
+    ax.set_title(title)
+    ax.set_xlabel("x1 (scaled)")
+    ax.set_ylabel("x2 (scaled)")
+    ax.legend()
+
+fig, ax = plt.subplots(figsize=(7, 5))
+plot_svm(svm_linear, X_train_s, y_train, "Linear SVM: Decision Boundary and Margin", ax)
+plt.show()
+
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred, cmap="Blues")
+plt.title("Confusion Matrix - Linear SVM")
+plt.show()
+
+# ------------------------------------------------------------
+# Non-linear SVM on non-linearly separable data (RBF kernel)
+# ------------------------------------------------------------
+X_nl, y_nl = make_moons(n_samples=400, noise=0.25, random_state=42)
+pd.DataFrame({"x1": X_nl[:, 0], "x2": X_nl[:, 1], "target": y_nl}).to_csv("ultrasonic.csv", index=False)
+
+ultrasonic = pd.read_csv("ultrasonic.csv")
+X = ultrasonic[["x1", "x2"]].values
+y = ultrasonic["target"].values
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+results = {}
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+for ax, (name, model) in zip(axes, [
+        ("Linear kernel", SVC(kernel="linear", C=1.0)),
+        ("RBF kernel", SVC(kernel="rbf", C=1.0, gamma="scale"))]):
+    model.fit(X_train_s, y_train)
+    pred = model.predict(X_test_s)
+    results[name] = accuracy_score(y_test, pred)
+    plot_svm(model, X_train_s, y_train, f"SVM with {name}", ax)
+plt.tight_layout()
+plt.show()
+
+print("\n--- Kernel comparison on non-linear data ---")
+for name, acc in results.items():
+    print(f"{name}: accuracy = {acc:.4f}")
+
+# Classify a new sample with the RBF SVM
+rbf_model = SVC(kernel="rbf", C=1.0, gamma="scale").fit(X_train_s, y_train)
+new_point = np.array([[0.5, 0.25]])
+print("\nNew sample classified as class:",
+      rbf_model.predict(scaler.transform(new_point))[0])
+
+
+
+
+
+
+
+
+#expt8
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, confusion_matrix, ConfusionMatrixDisplay,
+                             classification_report)
+
+# Create dataset and save as ultrasonic.csv
+# Task: classify temperature level (Low / Medium / High) from weather data
+np.random.seed(42)
+n = 600
+humidity = np.random.uniform(20, 100, n)           # %
+pressure = np.random.uniform(990, 1030, n)         # hPa
+wind_speed = np.random.uniform(0, 30, n)           # km/h
+solar_radiation = np.random.uniform(50, 900, n)    # W/m2
+cloud_cover = np.random.uniform(0, 100, n)         # %
+month = np.random.randint(1, 13, n)
+
+temp = (10 + 0.025 * solar_radiation - 0.12 * humidity + 6 * np.sin((month - 4) * np.pi / 6)
+        - 0.05 * cloud_cover - 0.1 * wind_speed + np.random.normal(0, 1.5, n))
+level = pd.cut(temp, bins=[-np.inf, np.percentile(temp, 33), np.percentile(temp, 66), np.inf],
+               labels=["Low", "Medium", "High"])
+
+pd.DataFrame({
+    "Humidity": humidity, "Pressure": pressure, "Wind_Speed": wind_speed,
+    "Solar_Radiation": solar_radiation, "Cloud_Cover": cloud_cover,
+    "Month": month, "Temperature": temp, "Class": level,
+}).to_csv("ultrasonic.csv", index=False)
+
+# Step 1: Load dataset
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+print(ultrasonic["Class"].value_counts())
+
+# Step 2: Features and target (Temperature column is dropped, as Class is derived from it)
+X = ultrasonic.drop(["Class", "Temperature"], axis=1)
+y = ultrasonic["Class"]
+feature_names = list(X.columns)
+
+# Step 3: Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Step 4: Train Random Forest (bagging of decision trees)
+rf = RandomForestClassifier(
+    n_estimators=100,      # number of trees
+    max_features="sqrt",   # random subset of features per split
+    bootstrap=True,        # row sampling with replacement
+    oob_score=True,        # evaluate on data not seen by each tree
+    random_state=42,
+    n_jobs=-1)             # parallelization
+rf.fit(X_train, y_train)
+
+# Step 5: Predict and evaluate
+y_pred = rf.predict(X_test)
+print("\nAccuracy :", accuracy_score(y_test, y_pred))
+print("Precision:", precision_score(y_test, y_pred, average="macro"))
+print("Recall   :", recall_score(y_test, y_pred, average="macro"))
+print("F1-Score :", f1_score(y_test, y_pred, average="macro"))
+print("OOB score:", rf.oob_score_)
+labels = ["Low", "Medium", "High"]
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred, labels=labels))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# 5-fold cross-validation (robustness)
+cv = cross_val_score(rf, X, y, cv=5)
+print("Cross-validation accuracies:", np.round(cv, 4))
+print("Mean CV accuracy:", cv.mean())
+
+# Single decision tree vs Random Forest
+dt = DecisionTreeClassifier(random_state=42).fit(X_train, y_train)
+print("\nSingle Decision Tree accuracy:", accuracy_score(y_test, dt.predict(X_test)))
+print("Random Forest accuracy       :", accuracy_score(y_test, y_pred))
+
+# Effect of number of trees
+tree_counts = [1, 5, 10, 25, 50, 100, 200]
+acc_by_trees = []
+for t in tree_counts:
+    m = RandomForestClassifier(n_estimators=t, random_state=42).fit(X_train, y_train)
+    acc_by_trees.append(accuracy_score(y_test, m.predict(X_test)))
+
+# Feature importance
+importances = pd.Series(rf.feature_importances_, index=feature_names).sort_values()
+print("\nFeature Importance:\n", importances.sort_values(ascending=False))
+
+# Plots
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+importances.plot(kind="barh", ax=axes[0], color="teal")
+axes[0].set_title("Feature Importance")
+axes[0].set_xlabel("Importance")
+
+axes[1].plot(tree_counts, acc_by_trees, marker="o")
+axes[1].set_xlabel("Number of trees")
+axes[1].set_ylabel("Test accuracy")
+axes[1].set_title("Accuracy vs Number of Trees")
+plt.tight_layout()
+plt.show()
+
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred, labels=labels, cmap="Blues")
+plt.title("Confusion Matrix - Random Forest")
+plt.show()
+
+# Step 6: Classify a new sample
+new_sample = pd.DataFrame([{
+    "Humidity": 35, "Pressure": 1005, "Wind_Speed": 6,
+    "Solar_Radiation": 750, "Cloud_Cover": 10, "Month": 5,
+}])[feature_names]
+print("\nNew sample prediction:", rf.predict(new_sample)[0])
+print("Class probabilities:", dict(zip(rf.classes_, rf.predict_proba(new_sample)[0].round(3))))
+
+
+
+
+
+
+
+
+#expt9
+import numpy as np
+import pandas as pd
+
+ultrasonic = pd.read_csv("ultrasonic.csv")
+X = ultrasonic[["Income", "Life_Expectancy", "Literacy_Rate", "Birth_Rate"]].values
+X = (X - X.mean(axis=0)) / X.std(axis=0)
+
+def kmeans_scratch(X, k, max_iter=100, seed=42):
+    rng = np.random.default_rng(seed)
+    centroids = X[rng.choice(len(X), k, replace=False)]      # select random K centroids
+    for _ in range(max_iter):
+        dist = np.linalg.norm(X[:, None] - centroids[None], axis=2)
+        labels = np.argmin(dist, axis=1)                      # assign to closest centroid
+        new_centroids = np.array([X[labels == i].mean(axis=0) if np.any(labels == i)
+                                  else centroids[i] for i in range(k)])  # recompute centroids
+        if np.allclose(new_centroids, centroids):             # no reassignment: finish
+            break
+        centroids = new_centroids
+    wcss = sum(np.sum((X[labels == i] - centroids[i]) ** 2) for i in range(k))
+    return labels, centroids, wcss
+
+labels, centroids, wcss = kmeans_scratch(X, 3)
+print("WCSS:", wcss)
+print("Cluster sizes:", np.bincount(labels))
+
+
+
+
+
+#expt10
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+# Step 1: Get the dataset and save as ultrasonic.csv
+# 3 classes, 8 correlated features (so PCA has redundancy to remove)
+np.random.seed(42)
+n_per_class = 100
+centers = {"A": [0, 0], "B": [4, 3], "C": [-3, 5]}
+rows = []
+for label, (c1, c2) in centers.items():
+    z1 = np.random.normal(c1, 1.0, n_per_class)
+    z2 = np.random.normal(c2, 1.0, n_per_class)
+    data = pd.DataFrame({
+        "F1": z1 + np.random.normal(0, 0.3, n_per_class),
+        "F2": 2 * z1 + np.random.normal(0, 0.5, n_per_class),
+        "F3": z1 - z2 + np.random.normal(0, 0.4, n_per_class),
+        "F4": z2 + np.random.normal(0, 0.3, n_per_class),
+        "F5": 1.5 * z2 + np.random.normal(0, 0.5, n_per_class),
+        "F6": z1 + z2 + np.random.normal(0, 0.4, n_per_class),
+        "F7": np.random.normal(0, 1, n_per_class),     # noise
+        "F8": np.random.normal(0, 1, n_per_class),     # noise
+    })
+    data["Class"] = label
+    rows.append(data)
+pd.concat(rows, ignore_index=True).sample(frac=1, random_state=42).to_csv("ultrasonic.csv", index=False)
+
+# Step 2: Represent data in a structure
+ultrasonic = pd.read_csv("ultrasonic.csv")
+print(ultrasonic.head())
+print("Shape:", ultrasonic.shape)
+
+features = [c for c in ultrasonic.columns if c != "Class"]
+X = ultrasonic[features].values
+y = ultrasonic["Class"].values
+
+# Step 3: Standardize the data
+scaler = StandardScaler()
+X_s = scaler.fit_transform(X)
+
+# Step 4: Calculate principal components (from scratch)
+cov_matrix = np.cov(X_s.T)
+eig_vals, eig_vecs = np.linalg.eigh(cov_matrix)
+order = np.argsort(eig_vals)[::-1]               # sort by importance
+eig_vals = eig_vals[order]
+eig_vecs = eig_vecs[:, order]
+
+explained = eig_vals / eig_vals.sum()
+cumulative = np.cumsum(explained)
+
+print("\nEigenvalues:", np.round(eig_vals, 4))
+print("Explained variance ratio:", np.round(explained, 4))
+print("Cumulative variance     :", np.round(cumulative, 4))
+
+# Scikit-learn PCA (full) to cross-check
+pca_full = PCA()
+pca_full.fit(X_s)
+print("\nsklearn explained variance ratio:", np.round(pca_full.explained_variance_ratio_, 4))
+
+# Step 5: Remove unimportant components (keep 95% of variance)
+n_components = int(np.argmax(cumulative >= 0.95) + 1)
+print(f"\nComponents needed for 95% variance: {n_components} (out of {len(features)})")
+
+pca = PCA(n_components=n_components)
+X_pca = pca.fit_transform(X_s)
+print("Reduced shape:", X_pca.shape)
+print("Variance retained:", pca.explained_variance_ratio_.sum())
+
+# Principal components as linear combinations of original features
+components_df = pd.DataFrame(pca.components_, columns=features,
+                             index=[f"PC{i+1}" for i in range(n_components)])
+print("\nPrincipal component loadings:\n", components_df.round(3))
+
+# Step 6: Display data with PCs
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+# Scree plot
+axes[0].bar(range(1, len(explained) + 1), explained, alpha=0.7, label="Individual")
+axes[0].step(range(1, len(cumulative) + 1), cumulative, where="mid", color="red", label="Cumulative")
+axes[0].axhline(0.95, color="gray", linestyle="--")
+axes[0].set_xlabel("Principal component")
+axes[0].set_ylabel("Explained variance ratio")
+axes[0].set_title("Scree Plot")
+axes[0].legend()
+
+# 2D projection
+colors = {"A": "tab:blue", "B": "tab:green", "C": "tab:orange"}
+for cls in np.unique(y):
+    pts = X_pca[y == cls]
+    axes[1].scatter(pts[:, 0], pts[:, 1], c=colors[cls], label=f"Class {cls}", s=25, edgecolor="k")
+axes[1].set_xlabel("PC1")
+axes[1].set_ylabel("PC2")
+axes[1].set_title("Data in 2D (PC1 vs PC2)")
+axes[1].legend()
+
+# Heatmap of loadings
+im = axes[2].imshow(pca_full.components_[:2], cmap="coolwarm", aspect="auto")
+axes[2].set_xticks(range(len(features)))
+axes[2].set_xticklabels(features)
+axes[2].set_yticks([0, 1])
+axes[2].set_yticklabels(["PC1", "PC2"])
+axes[2].set_title("Feature loadings")
+plt.colorbar(im, ax=axes[2])
+plt.tight_layout()
+plt.show()
+
+# Impact of PCA on model performance
+X_tr, X_te, y_tr, y_te = train_test_split(X_s, y, test_size=0.2, random_state=42, stratify=y)
+clf = LogisticRegression(max_iter=1000).fit(X_tr, y_tr)
+acc_original = accuracy_score(y_te, clf.predict(X_te))
+
+pca_m = PCA(n_components=n_components).fit(X_tr)
+clf_pca = LogisticRegression(max_iter=1000).fit(pca_m.transform(X_tr), y_tr)
+acc_pca = accuracy_score(y_te, clf_pca.predict(pca_m.transform(X_te)))
+
+pca_2 = PCA(n_components=2).fit(X_tr)
+clf_2 = LogisticRegression(max_iter=1000).fit(pca_2.transform(X_tr), y_tr)
+acc_2 = accuracy_score(y_te, clf_2.predict(pca_2.transform(X_te)))
+
+print("\n--- Model performance (Logistic Regression) ---")
+print(f"Original {len(features)} features : {acc_original:.4f}")
+print(f"PCA ({n_components} components)    : {acc_pca:.4f}")
+print(f"PCA (2 components)    : {acc_2:.4f}")
+
+# Reconstruction error
+X_back = pca.inverse_transform(X_pca)
+print("\nReconstruction error (MSE):", np.mean((X_s - X_back) ** 2))
